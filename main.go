@@ -10,7 +10,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/intrntsrfr/stareborde/bot"
+	"github.com/intrntsrfr/starboard/bot"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )

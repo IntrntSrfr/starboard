@@ -1,4 +1,4 @@
-module github.com/intrntsrfr/stareborde
+module github.com/intrntsrfr/starboard
 
 go 1.12
 
