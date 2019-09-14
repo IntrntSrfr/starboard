@@ -52,12 +52,6 @@ func (b *Bot) messageReactionAddHandler(s *discordgo.Session, r *discordgo.Messa
 	case sql.ErrNoRows:
 		if count >= gs.MinStars {
 
-			// post to starboard
-			u, err := s.State.Member(r.GuildID, r.UserID)
-			if err != nil {
-				return
-			}
-
 			embed := &discordgo.MessageEmbed{
 				Author: &discordgo.MessageEmbedAuthor{
 					IconURL: msg.Author.AvatarURL("64"),
@@ -70,7 +64,7 @@ func (b *Bot) messageReactionAddHandler(s *discordgo.Session, r *discordgo.Messa
 				Fields: []*discordgo.MessageEmbedField{
 					&discordgo.MessageEmbedField{
 						Name:   "Author",
-						Value:  u.Mention(),
+						Value:  msg.Author.Mention(),
 						Inline: true,
 					},
 					&discordgo.MessageEmbedField{
