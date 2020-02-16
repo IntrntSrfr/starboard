@@ -18,6 +18,10 @@ type Bot struct {
 	starttime time.Time
 }
 
+var (
+	statusTimer *time.Ticker
+)
+
 func NewBot(Config *Config, Log *zap.Logger, psql *sqlx.DB) (*Bot, error) {
 
 	client, err := discordgo.New("Bot " + Config.Token)
@@ -73,11 +77,11 @@ func (b *Bot) addHandlers() {
 
 func (b *Bot) readyHandler(s *discordgo.Session, r *discordgo.Ready) {
 
-	statustimer := time.NewTicker(time.Second * 15)
+	statusTimer = time.NewTicker(time.Second * 15)
 
 	go func() {
 		i := 0
-		for range statustimer.C {
+		for range statusTimer.C {
 			switch i {
 			case 0:
 				s.UpdateStatus(0, "sb.help")
@@ -111,6 +115,6 @@ func (b *Bot) readyHandler(s *discordgo.Session, r *discordgo.Ready) {
 }
 
 func (b *Bot) disconnectHandler(s *discordgo.Session, d *discordgo.Disconnect) {
-	//atomic.StoreInt64(&b.loggerDB.TotalMembers, 0)
+	statusTimer.Stop()
 	fmt.Println("DISCONNECTED AT ", time.Now().Format(time.RFC1123))
 }
