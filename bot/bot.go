@@ -30,6 +30,8 @@ func NewBot(Config *Config, Log *zap.Logger, psql *sqlx.DB) (*Bot, error) {
 		return nil, err
 	}
 
+	client.Identify.Intents = discordgo.MakeIntent(discordgo.IntentsAll)
+
 	Log.Info("created discord client")
 
 	schemas := []string{

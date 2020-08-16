@@ -39,7 +39,6 @@ func (b *Bot) messageReactionAddHandler(s *discordgo.Session, r *discordgo.Messa
 
 	count := 0
 	for _, mr := range msg.Reactions {
-
 		if mr.Emoji.Name == "⭐" {
 			count = mr.Count
 		}
@@ -62,12 +61,12 @@ func (b *Bot) messageReactionAddHandler(s *discordgo.Session, r *discordgo.Messa
 				Color:       dColorWhite,
 				//Title: fmt.Sprintf("⭐ %v", count),
 				Fields: []*discordgo.MessageEmbedField{
-					&discordgo.MessageEmbedField{
+					{
 						Name:   "Author",
 						Value:  msg.Author.Mention(),
 						Inline: true,
 					},
-					&discordgo.MessageEmbedField{
+					{
 						Name:   "Channel",
 						Value:  "<#" + r.ChannelID + ">",
 						Inline: true,
