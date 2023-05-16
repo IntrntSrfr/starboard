@@ -2,13 +2,13 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/intrntsrfr/starboard/bot"
 	"github.com/jmoiron/sqlx"
@@ -16,19 +16,10 @@ import (
 )
 
 func main() {
-
-	// Create zap logger
-	z := zap.NewDevelopmentConfig()
-	z.OutputPaths = []string{"./logs.txt"}
-	z.ErrorOutputPaths = []string{"./logs.txt"}
-	logger, err := z.Build()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer logger.Sync()
-
-	logger.Info("logger construction succeeded")
+	loggerConfig := zap.NewDevelopmentConfig()
+	loggerConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	logger, _ := loggerConfig.Build()
+	logger = logger.Named("main")
 
 	// Look for the config file
 	file, err := ioutil.ReadFile("./config.json")

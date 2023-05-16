@@ -2,16 +2,20 @@ package bot
 
 import (
 	"github.com/bwmarrin/discordgo"
+	"go.uber.org/zap"
 )
 
 func (b *Bot) messageDeleteHandler(s *discordgo.Session, m *discordgo.MessageDelete) {
-	star := Star{}
-	err := b.db.Get(&star, "SELECT * FROM STARS WHERE id = $1", m.ID)
+	star, err := b.db.GetStar(m.ID)
 	if err != nil {
+		b.logger.Error("could not get star", zap.Error(err), zap.String("event", "message delete"), zap.Any("message", m))
 		return
 	}
 
 	s.ChannelMessageDelete(star.StarboardChannelID, star.StarboardMsgID)
-
-	b.db.Exec("DELETE FROM stars WHERE id = $1", m.ID)
+	err = b.db.DeleteStar(m.ID)
+	if err != nil {
+		b.logger.Error("could not delete star", zap.Error(err), zap.String("event", "message delete"), zap.Any("message", m))
+		return
+	}
 }

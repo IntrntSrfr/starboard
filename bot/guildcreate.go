@@ -9,9 +9,7 @@ import (
 )
 
 func (b *Bot) guildCreateHandler(s *discordgo.Session, g *discordgo.GuildCreate) {
-
 	sbchannel := ""
-
 	for _, c := range g.Channels {
 		if strings.ToLower(c.Name) == "starboard" {
 			sbchannel = c.ID

@@ -26,7 +26,7 @@ type Star struct {
 	StarboardChannelID string `json:"starboard_channel_id" db:"starboard_channel_id"`
 }
 
-const schemaGuildSettings = `
+const SchemaGuildSettings = `
 CREATE TABLE IF NOT EXISTS guildsettings (
 	id                     TEXT PRIMARY KEY,
 	starboard_channel_id   TEXT,
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS guildsettings (
 );
 `
 
-const schemaStars = `
+const SchemaStars = `
 CREATE TABLE IF NOT EXISTS stars (
 	id                   TEXT PRIMARY KEY,
 	origin_channel_id    TEXT,

@@ -9,12 +9,7 @@ import (
 )
 
 func (b *Bot) messageUpdateHandler(s *discordgo.Session, m *discordgo.MessageUpdate) {
-
-	if m.Author == nil {
-		return
-	}
-
-	if m.Author.Bot {
+	if m.Author == nil || m.Author.Bot {
 		return
 	}
 

@@ -7,45 +7,33 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/jmoiron/sqlx"
+	"github.com/intrntsrfr/starboard/database"
 )
 
 type Bot struct {
 	logger    *zap.Logger
-	db        *sqlx.DB
+	db        database.DB
 	client    *discordgo.Session
 	config    *Config
 	starttime time.Time
 }
 
-var (
-	statusTimer *time.Ticker
-)
-
-func NewBot(Config *Config, Log *zap.Logger, psql *sqlx.DB) (*Bot, error) {
-
+func NewBot(Config *Config, Log *zap.Logger, db database.DB) (*Bot, error) {
 	client, err := discordgo.New("Bot " + Config.Token)
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
 	}
 
-	client.Identify.Intents = discordgo.MakeIntent(discordgo.IntentsAll)
-
-	Log.Info("created discord client")
-
-	schemas := []string{
-		schemaGuildSettings,
-		schemaStars,
-	}
-
-	for _, s := range schemas {
-		psql.MustExec(s)
-	}
+	intents := discordgo.IntentsAllWithoutPrivileged |
+		discordgo.IntentGuildMembers |
+		discordgo.IntentGuildPresences |
+		discordgo.IntentMessageContent
+	client.Identify.Intents = discordgo.MakeIntent(intents)
 
 	return &Bot{
 		logger:    Log,
-		db:        psql,
+		db:        db,
 		client:    client,
 		config:    Config,
 		starttime: time.Now(),
@@ -59,13 +47,14 @@ func (b *Bot) Close() {
 }
 
 func (b *Bot) Run() error {
-
 	b.addHandlers()
 	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
 	return b.client.Open()
 }
 
 func (b *Bot) addHandlers() {
+	b.client.AddHandlerOnce(statusLoop(b))
+	b.client.AddHandler(disconnectHandler(b))
 	b.client.AddHandler(b.guildCreateHandler)
 	b.client.AddHandler(b.messageCreateHandler)
 	b.client.AddHandler(b.messageUpdateHandler)
@@ -73,50 +62,42 @@ func (b *Bot) addHandlers() {
 	b.client.AddHandler(b.messageReactionAddHandler)
 	b.client.AddHandler(b.messageReactionRemoveHandler)
 	b.client.AddHandler(b.messageReactionRemoveAllHandler)
-	b.client.AddHandler(b.readyHandler)
-	b.client.AddHandler(b.disconnectHandler)
 }
 
-func (b *Bot) readyHandler(s *discordgo.Session, r *discordgo.Ready) {
+const totalStatusDisplays = 2
 
-	statusTimer = time.NewTicker(time.Second * 15)
-
-	go func() {
-		i := 0
-		for range statusTimer.C {
-			switch i {
-			case 0:
-				s.UpdateStatus(0, "sb.help")
-				i++
-			case 1:
-				channels := 0
-
-				for _, g := range s.State.Guilds {
-					for _, c := range g.Channels {
-						if c.Type == discordgo.ChannelTypeGuildText {
-							channels++
-						}
-					}
+func statusLoop(b *Bot) func(s *discordgo.Session, r *discordgo.Ready) {
+	statusTimer := time.NewTicker(time.Second * 15)
+	return func(s *discordgo.Session, r *discordgo.Ready) {
+		display := 0
+		go func() {
+			for range statusTimer.C {
+				var (
+					name       string
+					statusType discordgo.ActivityType
+				)
+				switch display {
+				case 0:
+					name = "sb.help"
+					statusType = discordgo.ActivityTypeGame
+				case 1:
+					name = fmt.Sprintf("for %v", time.Since(b.starttime).String())
+					statusType = discordgo.ActivityTypeGame
 				}
-
-				s.UpdateStatusComplex(discordgo.UpdateStatusData{
-					Game: &discordgo.Game{
-						Name: fmt.Sprintf("%v channels for stars", channels),
-						Type: discordgo.GameTypeWatching,
-					},
+				_ = s.UpdateStatusComplex(discordgo.UpdateStatusData{
+					Activities: []*discordgo.Activity{{
+						Name: name,
+						Type: statusType,
+					}},
 				})
-				i++
-			default:
-				i = 0
+				display = (display + 1) % totalStatusDisplays
 			}
-
-		}
-	}()
-
-	fmt.Println(fmt.Sprintf("Logged in as %v.", r.User.String()))
+		}()
+	}
 }
 
-func (b *Bot) disconnectHandler(s *discordgo.Session, d *discordgo.Disconnect) {
-	statusTimer.Stop()
-	fmt.Println("DISCONNECTED AT ", time.Now().Format(time.RFC1123))
+func disconnectHandler(b *Bot) func(s *discordgo.Session, d *discordgo.Disconnect) {
+	return func(s *discordgo.Session, d *discordgo.Disconnect) {
+		b.logger.Warn("disconnected")
+	}
 }

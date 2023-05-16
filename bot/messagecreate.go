@@ -10,30 +10,27 @@ import (
 )
 
 func (b *Bot) messageCreateHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
-
-	if m.Author.Bot {
+	if m.Author == nil || m.Author.Bot {
 		return
 	}
 
 	g, err := s.State.Guild(m.GuildID)
 	if err != nil {
-		b.logger.Info("error", zap.Error(err))
-		fmt.Println(err)
+		b.logger.Error("could not fetch guild", zap.Error(err), zap.String("guild id", m.GuildID))
 		return
 	}
 
 	ch, err := s.State.Channel(m.ChannelID)
 	if err != nil {
-		b.logger.Info("error", zap.Error(err))
-		fmt.Println(err)
+		b.logger.Info("could not fetch channel", zap.Error(err), zap.String("channel id", m.ChannelID))
 		return
 	}
+
 	if ch.Type != discordgo.ChannelTypeGuildText {
 		return
 	}
 
-	args := strings.Split(m.Content, " ")
-
+	args := strings.Fields(strings.ToLower(m.Content))
 	uperms, err := s.State.UserChannelPermissions(m.Author.ID, m.ChannelID)
 	if err != nil {
 		return
@@ -71,7 +68,6 @@ func (b *Bot) messageCreateHandler(s *discordgo.Session, m *discordgo.MessageCre
 		}
 
 	} else if args[0] == "sb.help" {
-
 		text := strings.Builder{}
 		text.WriteString("There are two settings you can change")
 		text.WriteString("\n - Starboard channel")
@@ -80,8 +76,6 @@ func (b *Bot) messageCreateHandler(s *discordgo.Session, m *discordgo.MessageCre
 		text.WriteString("\nTwo examples: ")
 		text.WriteString("\n`sb.set starboard` - this will set starboard to whatever channel the command is posted")
 		text.WriteString("\n`sb.set minstars 3` - this will set the required stars to 3")
-
 		s.ChannelMessageSend(ch.ID, text.String())
 	}
-
 }
