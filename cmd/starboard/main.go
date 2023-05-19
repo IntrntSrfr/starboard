@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,8 +9,9 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/intrntsrfr/starboard/bot"
-	"github.com/jmoiron/sqlx"
+	"github.com/intrntsrfr/starboard/internal/bot"
+	"github.com/intrntsrfr/starboard/internal/database"
+	"github.com/intrntsrfr/starboard/internal/structs"
 	_ "github.com/lib/pq"
 )
 
@@ -21,32 +21,28 @@ func main() {
 	logger, _ := loggerConfig.Build()
 	logger = logger.Named("main")
 
-	// Look for the config file
-	file, err := ioutil.ReadFile("./config.json")
+	file, err := os.ReadFile("./config.json")
 	if err != nil {
-		panic("config file not found")
+		logger.Panic("could not read file", zap.Error(err))
 	}
 
-	// Unmashal config
-	var config bot.Config
+	var config structs.Config
 	err = json.Unmarshal(file, &config)
 	if err != nil {
-		panic("error unmarshaling config file")
+		logger.Panic("could not unmarshal config", zap.Error(err))
 	}
 
-	// Create database connection
-	psql, err := sqlx.Connect("postgres", config.ConnectionString)
+	psql, err := database.NewPSQLDatabase(config.ConnectionString)
 	if err != nil {
-		panic("could not connect to db")
+		logger.Panic("could not connect to db", zap.Error(err))
 	}
-	logger.Info("Established database connection")
 
 	// Create new discord log bot
 	client, err := bot.NewBot(&config, logger.Named("discord"), psql)
 	if err != nil {
 		return
 	}
-	defer client.Close()
+	defer closeBot(client, logger)
 
 	// Run the client
 	err = client.Run()
@@ -58,4 +54,11 @@ func main() {
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
+}
+
+func closeBot(client *bot.Bot, log *zap.Logger) {
+	err := client.Close()
+	if err != nil {
+		log.Error("could not close bot", zap.Error(err))
+	}
 }

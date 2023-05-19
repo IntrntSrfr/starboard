@@ -1,17 +1,9 @@
-package bot
+package structs
 
 type Config struct {
 	Token            string `json:"token"`
 	ConnectionString string `json:"connection_string"`
 }
-
-const (
-	dColorRed    = 13107200
-	dColorOrange = 15761746
-	dColorLBlue  = 6410733
-	dColorGreen  = 51200
-	dColorWhite  = 16777215
-)
 
 type GuildSettings struct {
 	ID                 string `json:"id" db:"id"`
@@ -29,16 +21,16 @@ type Star struct {
 const SchemaGuildSettings = `
 CREATE TABLE IF NOT EXISTS guildsettings (
 	id                     TEXT PRIMARY KEY,
-	starboard_channel_id   TEXT,
-	min_stars              INT
+	starboard_channel_id   TEXT NOT NULL DEFAULT '',
+	min_stars              INT NOT NULL DEFAULT 3
 );
 `
 
 const SchemaStars = `
 CREATE TABLE IF NOT EXISTS stars (
 	id                   TEXT PRIMARY KEY,
-	origin_channel_id    TEXT,
-	starboard_msg_id     TEXT,
-	starboard_channel_id TEXT
+	origin_channel_id    TEXT NOT NULL,
+	starboard_msg_id     TEXT NOT NULL,
+	starboard_channel_id TEXT NOT NULL
 );
 `

@@ -1,14 +1,6 @@
 package bot
 
-import (
-	"fmt"
-	"strconv"
-	"strings"
-
-	"github.com/bwmarrin/discordgo"
-	"go.uber.org/zap"
-)
-
+/*
 func (b *Bot) messageCreateHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author == nil || m.Author.Bot {
 		return
@@ -79,3 +71,4 @@ func (b *Bot) messageCreateHandler(s *discordgo.Session, m *discordgo.MessageCre
 		s.ChannelMessageSend(ch.ID, text.String())
 	}
 }
+*/
