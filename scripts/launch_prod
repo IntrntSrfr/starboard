@@ -1,3 +1,3 @@
 #!/bin/bash
 
-docker run -d -v "$(pwd)/cmd/config.json:/starboard/config.json" internetsurfer/starboard:latest
+docker run -d -v "$(pwd)/cmd/starboard/config.json:/starboard/config.json" internetsurfer/starboard:latest
