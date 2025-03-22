@@ -3,9 +3,10 @@ package bot
 import (
 	"errors"
 	"fmt"
-	"github.com/intrntsrfr/starboard/internal/helpers"
-	"go.uber.org/zap"
 	"strings"
+
+	"github.com/intrntsrfr/meido/pkg/utils/builders"
+	"go.uber.org/zap"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -108,7 +109,7 @@ func settingsViewCommand(b *Bot, s *discordgo.Session, i *discordgo.Interaction,
 	if gs.StarboardChannelID != "" {
 		sbChannel = fmt.Sprintf("<#%v>", gs.StarboardChannelID)
 	}
-	embed := helpers.NewEmbed().
+	embed := builders.NewEmbedBuilder().
 		WithTitle(fmt.Sprintf("Settings for %v", g.Name)).
 		WithOkColor().
 		WithThumbnail(g.IconURL("512")).
@@ -135,7 +136,7 @@ func settingsEditCommand(b *Bot, s *discordgo.Session, i *discordgo.Interaction,
 	if err != nil {
 		return defaultErrorResponse(), err
 	}
-	embed := helpers.NewEmbed().
+	embed := builders.NewEmbedBuilder().
 		WithTitle(fmt.Sprintf("Settings for %v", g.Name)).
 		WithOkColor().
 		WithThumbnail(g.IconURL("512"))

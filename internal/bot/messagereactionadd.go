@@ -3,11 +3,12 @@ package bot
 import (
 	"database/sql"
 	"fmt"
-	"github.com/bwmarrin/discordgo"
-	"github.com/intrntsrfr/starboard/internal/helpers"
-	"go.uber.org/zap"
 	"path/filepath"
 	"time"
+
+	"github.com/bwmarrin/discordgo"
+	"github.com/intrntsrfr/meido/pkg/utils/builders"
+	"go.uber.org/zap"
 )
 
 func messageReactionAddHandler(b *Bot) func(s *discordgo.Session, m *discordgo.MessageReactionAdd) {
@@ -38,7 +39,7 @@ func messageReactionAddHandler(b *Bot) func(s *discordgo.Session, m *discordgo.M
 			if count < gs.MinStars {
 				return
 			}
-			embed := helpers.NewEmbed().
+			embed := builders.NewEmbedBuilder().
 				WithAuthor(fmt.Sprintf("%v - ⭐ %v", msg.Author.String(), count), msg.Author.AvatarURL("64")).
 				WithDescription(msg.Content).
 				WithOkColor().
