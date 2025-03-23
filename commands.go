@@ -81,7 +81,7 @@ func newSettingsSlash(m *module) *bot.ModuleApplicationCommand {
 			Description: "Set a setting",
 			Options: []*discordgo.ApplicationCommandOption{
 				{
-					Type:        discordgo.ApplicationCommandOptionNumber,
+					Type:        discordgo.ApplicationCommandOptionInteger,
 					Name:        "stars",
 					Description: "Minimum amount of required stars for a message to be posted to the Starboard",
 					Required:    true,
@@ -147,11 +147,16 @@ func newSettingsSlash(m *module) *bot.ModuleApplicationCommand {
 }
 
 func generateSettingsEmbed(gc *GuildSettings) *discordgo.MessageEmbed {
+	channelFieldStr := fmt.Sprintf("<#%v>", gc.StarboardChannelID)
+	if gc.StarboardChannelID == "" {
+		channelFieldStr = "Not set"
+	}
+
 	embed := builders.NewEmbedBuilder().
 		WithTitle("Settings").
 		WithOkColor().
 		AddField("Stars required", fmt.Sprint(gc.MinStars), true).
-		AddField("Starboard channel", fmt.Sprintf("<#%v>", gc.StarboardChannelID), true)
+		AddField("Starboard channel", channelFieldStr, true)
 
 	return embed.Build()
 }
