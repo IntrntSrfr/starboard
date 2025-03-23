@@ -8,9 +8,7 @@ import (
 	"syscall"
 
 	"github.com/intrntsrfr/meido/pkg/utils"
-	"github.com/intrntsrfr/starboard/internal/bot"
-	"github.com/intrntsrfr/starboard/internal/database"
-	"github.com/intrntsrfr/starboard/internal/structs"
+	"github.com/intrntsrfr/starboard"
 	_ "github.com/lib/pq"
 )
 
@@ -18,12 +16,12 @@ func main() {
 	cfg := utils.NewConfig()
 	loadConfig(cfg, "./config.json")
 
-	psql, err := database.NewPSQLDatabase(cfg.GetString("connection_string"))
+	psql, err := starboard.NewPSQLDatabase(cfg.GetString("connection_string"))
 	if err != nil {
 		panic(err)
 	}
 
-	bot := bot.NewBot(cfg, psql)
+	bot := starboard.NewBot(cfg, psql)
 	defer bot.Close()
 
 	if err = bot.Run(context.Background()); err != nil {
@@ -41,7 +39,7 @@ func loadConfig(cfg *utils.Config, path string) {
 		panic(err)
 	}
 
-	var c structs.Config
+	var c starboard.Config
 	if err := json.Unmarshal(f, &c); err != nil {
 		panic(err)
 	}

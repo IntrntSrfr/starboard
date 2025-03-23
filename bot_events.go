@@ -1,4 +1,4 @@
-package bot
+package starboard
 
 import (
 	"github.com/intrntsrfr/meido/pkg/mio/bot"

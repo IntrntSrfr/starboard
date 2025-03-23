@@ -1,4 +1,4 @@
-package bot
+package starboard
 
 import (
 	"context"
@@ -6,17 +6,16 @@ import (
 	"github.com/intrntsrfr/meido/pkg/mio"
 	"github.com/intrntsrfr/meido/pkg/mio/bot"
 	"github.com/intrntsrfr/meido/pkg/utils"
-	"github.com/intrntsrfr/starboard/internal/database"
 )
 
 type Bot struct {
 	Bot    *bot.Bot
 	logger mio.Logger
-	db     database.DB
+	db     DB
 	config *utils.Config
 }
 
-func NewBot(config *utils.Config, db database.DB) *Bot {
+func NewBot(config *utils.Config, db DB) *Bot {
 	logger := mio.NewDefaultLogger().Named("Bot")
 
 	b := bot.NewBotBuilder(config).

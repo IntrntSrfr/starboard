@@ -1,4 +1,4 @@
-package bot
+package starboard
 
 import (
 	"fmt"
@@ -9,16 +9,14 @@ import (
 	"github.com/intrntsrfr/meido/pkg/mio/bot"
 	"github.com/intrntsrfr/meido/pkg/mio/discord"
 	"github.com/intrntsrfr/meido/pkg/utils/builders"
-	"github.com/intrntsrfr/starboard/internal/database"
-	"github.com/intrntsrfr/starboard/internal/structs"
 )
 
 type module struct {
 	*bot.ModuleBase
-	db database.DB
+	db DB
 }
 
-func NewModule(b *bot.Bot, db database.DB, logger mio.Logger) *module {
+func NewModule(b *bot.Bot, db DB, logger mio.Logger) *module {
 	logger = logger.Named("Module")
 
 	return &module{
@@ -148,7 +146,7 @@ func newSettingsSlash(m *module) *bot.ModuleApplicationCommand {
 	return cmd.Execute(run).Build()
 }
 
-func generateSettingsEmbed(gc *structs.GuildSettings) *discordgo.MessageEmbed {
+func generateSettingsEmbed(gc *GuildSettings) *discordgo.MessageEmbed {
 	embed := builders.NewEmbedBuilder().
 		WithTitle("Settings").
 		WithOkColor().

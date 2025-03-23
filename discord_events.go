@@ -1,4 +1,4 @@
-package bot
+package starboard
 
 import (
 	"database/sql"
