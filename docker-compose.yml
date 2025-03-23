@@ -11,8 +11,8 @@ services:
     restart: always
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=yourpassword
-      - POSTGRES_DB=yourdbname
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=starboard
     ports:
       - "5432:5432"
     volumes:
