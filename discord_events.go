@@ -3,7 +3,6 @@ package starboard
 import (
 	"database/sql"
 	"fmt"
-	"path/filepath"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -65,12 +64,12 @@ func messageReactionAddHandler(b *Bot) func(s *discordgo.Session, m *discordgo.M
 				AddField("Channel", fmt.Sprintf("<#%v>", r.ChannelID), true)
 
 			if len(msg.Attachments) > 0 {
-				ext := filepath.Ext(msg.Attachments[0].Filename)
-				switch ext {
-				case ".gif", ".png", ".jpg":
-					embed.WithImageUrl(msg.Attachments[0].URL)
+				att := msg.Attachments[0]
+				switch att.ContentType {
+				case "image/jpeg", "image/png", "image/gif":
+					embed.WithImageUrl(att.URL)
 				default:
-					embed.Description = fmt.Sprintf("[[%v](%v)]", msg.Attachments[0].Filename, msg.Attachments[0].URL)
+					embed.Description = fmt.Sprintf("[[%v](%v)]", att.Filename, att.URL)
 				}
 			}
 			embed.Description += fmt.Sprintf("\n\n\n --> [Jump to message](https://discordapp.com/channels/%v/%v/%v)", r.GuildID, r.ChannelID, r.MessageID)
