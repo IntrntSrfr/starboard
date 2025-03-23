@@ -1,110 +1,68 @@
 package bot
 
 import (
-	"fmt"
-	"time"
+	"context"
 
-	"go.uber.org/zap"
-
-	"github.com/bwmarrin/discordgo"
+	"github.com/intrntsrfr/meido/pkg/mio"
+	"github.com/intrntsrfr/meido/pkg/mio/bot"
+	"github.com/intrntsrfr/meido/pkg/utils"
 	"github.com/intrntsrfr/starboard/internal/database"
-	"github.com/intrntsrfr/starboard/internal/structs"
 )
 
 type Bot struct {
-	logger    *zap.Logger
-	db        database.DB
-	client    *discordgo.Session
-	config    *structs.Config
-	starttime time.Time
+	Bot    *bot.Bot
+	logger mio.Logger
+	db     database.DB
+	config *utils.Config
 }
 
-func NewBot(Config *structs.Config, Log *zap.Logger, db database.DB) (*Bot, error) {
-	client, err := discordgo.New("Bot " + Config.Token)
-	if err != nil {
-		fmt.Println(err)
-		return nil, err
-	}
+func NewBot(config *utils.Config, db database.DB) *Bot {
+	logger := mio.NewDefaultLogger().Named("Bot")
 
-	intents := discordgo.IntentsAllWithoutPrivileged |
-		discordgo.IntentGuildMembers |
-		discordgo.IntentGuildPresences |
-		discordgo.IntentMessageContent
-	client.Identify.Intents = discordgo.MakeIntent(intents)
+	b := bot.NewBotBuilder(config).
+		WithDefaultHandlers().
+		WithLogger(logger).
+		Build()
 
 	return &Bot{
-		logger:    Log,
-		db:        db,
-		client:    client,
-		config:    Config,
-		starttime: time.Now(),
-	}, nil
-}
-
-func (b *Bot) Close() error {
-	b.logger.Info("shutdown")
-	if err := b.client.Close(); err != nil {
-		return err
-	}
-	if err := b.db.Close(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (b *Bot) Run() error {
-	b.addHandlers()
-	b.logger.Info("starting")
-	return b.client.Open()
-}
-
-func (b *Bot) addHandlers() {
-	b.client.AddHandlerOnce(statusLoop(b))
-	b.client.AddHandler(interactionCreate(b))
-	b.client.AddHandler(disconnectHandler(b))
-	b.client.AddHandler(guildCreateHandler(b))
-	//b.client.AddHandler(b.messageCreateHandler)
-	b.client.AddHandler(messageUpdateHandler(b))
-	b.client.AddHandler(messageDeleteHandler(b))
-	b.client.AddHandler(messageReactionAddHandler(b))
-	b.client.AddHandler(messageReactionRemoveHandler(b))
-	b.client.AddHandler(messageReactionRemoveAllHandler(b))
-}
-
-const totalStatusDisplays = 2
-
-func statusLoop(b *Bot) func(s *discordgo.Session, r *discordgo.Ready) {
-	statusTimer := time.NewTicker(time.Second * 15)
-	return func(s *discordgo.Session, r *discordgo.Ready) {
-		display := 0
-		go func() {
-			for range statusTimer.C {
-				var (
-					name       string
-					statusType discordgo.ActivityType
-				)
-				switch display {
-				case 0:
-					name = "/help"
-					statusType = discordgo.ActivityTypeGame
-				case 1:
-					name = "you forever O_O"
-					statusType = discordgo.ActivityTypeWatching
-				}
-				_ = s.UpdateStatusComplex(discordgo.UpdateStatusData{
-					Activities: []*discordgo.Activity{{
-						Name: name,
-						Type: statusType,
-					}},
-				})
-				display = (display + 1) % totalStatusDisplays
-			}
-		}()
+		Bot:    b,
+		logger: logger,
+		config: config,
+		db:     db,
 	}
 }
 
-func disconnectHandler(b *Bot) func(s *discordgo.Session, d *discordgo.Disconnect) {
-	return func(s *discordgo.Session, d *discordgo.Disconnect) {
-		b.logger.Warn("disconnected")
+func (b *Bot) Run(ctx context.Context) error {
+	b.registerModules()
+	b.registerDiscordHandlers()
+	b.registerMioHandlers()
+	return b.Bot.Run(ctx)
+}
+
+func (b *Bot) Close() {
+	b.Bot.Close()
+}
+
+func (b *Bot) registerModules() {
+	modules := []bot.Module{
+		NewModule(b.Bot, b.db, b.logger),
 	}
+	for _, mod := range modules {
+		b.Bot.RegisterModule(mod)
+	}
+}
+
+func (b *Bot) registerDiscordHandlers() {
+	b.Bot.Discord.AddEventHandler(interactionCreate(b))
+	b.Bot.Discord.AddEventHandler(guildCreateHandler(b))
+	b.Bot.Discord.AddEventHandler(messageUpdateHandler(b))
+	b.Bot.Discord.AddEventHandler(messageDeleteHandler(b))
+	b.Bot.Discord.AddEventHandler(messageReactionAddHandler(b))
+	b.Bot.Discord.AddEventHandler(messageReactionRemoveHandler(b))
+	b.Bot.Discord.AddEventHandler(messageReactionRemoveAllHandler(b))
+}
+
+func (b *Bot) registerMioHandlers() {
+	b.Bot.AddHandler(logApplicationCommandPanicked(b))
+	b.Bot.AddHandler(logApplicationCommandRan(b))
 }

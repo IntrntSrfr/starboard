@@ -1,14 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-
+	"github.com/intrntsrfr/meido/pkg/utils"
 	"github.com/intrntsrfr/starboard/internal/bot"
 	"github.com/intrntsrfr/starboard/internal/database"
 	"github.com/intrntsrfr/starboard/internal/structs"
@@ -16,49 +15,38 @@ import (
 )
 
 func main() {
-	loggerConfig := zap.NewDevelopmentConfig()
-	loggerConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	logger, _ := loggerConfig.Build()
-	logger = logger.Named("main")
+	cfg := utils.NewConfig()
+	loadConfig(cfg, "./config.json")
 
-	file, err := os.ReadFile("./config.json")
+	psql, err := database.NewPSQLDatabase(cfg.GetString("connection_string"))
 	if err != nil {
-		logger.Panic("could not read file", zap.Error(err))
+		panic(err)
 	}
 
-	var config structs.Config
-	err = json.Unmarshal(file, &config)
-	if err != nil {
-		logger.Panic("could not unmarshal config", zap.Error(err))
+	bot := bot.NewBot(cfg, psql)
+	defer bot.Close()
+
+	if err = bot.Run(context.Background()); err != nil {
+		panic(err)
 	}
 
-	psql, err := database.NewPSQLDatabase(config.ConnectionString)
-	if err != nil {
-		logger.Panic("could not connect to db", zap.Error(err))
-	}
-
-	// Create new discord log bot
-	client, err := bot.NewBot(&config, logger.Named("discord"), psql)
-	if err != nil {
-		return
-	}
-	defer closeBot(client, logger)
-
-	// Run the client
-	err = client.Run()
-	if err != nil {
-		return
-	}
-
-	// Block forever until ctrl-c
 	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
+	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM)
 	<-sc
 }
 
-func closeBot(client *bot.Bot, log *zap.Logger) {
-	err := client.Close()
+func loadConfig(cfg *utils.Config, path string) {
+	f, err := os.ReadFile(path)
 	if err != nil {
-		log.Error("could not close bot", zap.Error(err))
+		panic(err)
 	}
+
+	var c structs.Config
+	if err := json.Unmarshal(f, &c); err != nil {
+		panic(err)
+	}
+
+	cfg.Set("token", c.Token)
+	cfg.Set("shards", 1)
+	cfg.Set("connection_string", c.ConnectionString)
 }
