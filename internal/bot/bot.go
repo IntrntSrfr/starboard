@@ -53,7 +53,6 @@ func (b *Bot) registerModules() {
 }
 
 func (b *Bot) registerDiscordHandlers() {
-	b.Bot.Discord.AddEventHandler(interactionCreate(b))
 	b.Bot.Discord.AddEventHandler(guildCreateHandler(b))
 	b.Bot.Discord.AddEventHandler(messageUpdateHandler(b))
 	b.Bot.Discord.AddEventHandler(messageDeleteHandler(b))
