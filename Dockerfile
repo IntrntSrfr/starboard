@@ -1,12 +1,16 @@
-FROM golang:1.20-alpine AS build
-WORKDIR /starboard
+FROM golang:1.23-alpine AS build
+WORKDIR /app
+
 COPY go.mod go.sum ./
 RUN go mod download && go mod verify
+
 COPY . .
-RUN go mod download
 RUN CGO_ENABLED=0 GOOS=linux go build -o starboard ./cmd/starboard
 
 FROM alpine:latest
-WORKDIR /starboard
-COPY --from=build /starboard/starboard .
+RUN apk --no-cache add ca-certificates
+WORKDIR /app
+
+COPY --from=build /app/starboard .
+
 ENTRYPOINT ["./starboard"]
