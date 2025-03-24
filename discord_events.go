@@ -9,6 +9,10 @@ import (
 	"github.com/intrntsrfr/meido/pkg/utils/builders"
 )
 
+var (
+	tenorRegex = regexp.MustCompile(`(^https:\/\/media\.tenor\.com\/.*)(AAAAe\/)(.*)(\.png|\.jpg)`)
+)
+
 func messageDeleteHandler(b *Bot) func(s *discordgo.Session, m *discordgo.MessageDelete) {
 	return func(s *discordgo.Session, m *discordgo.MessageDelete) {
 		star, err := b.db.GetStar(m.ID)
@@ -75,9 +79,10 @@ func messageReactionAddHandler(b *Bot) func(s *discordgo.Session, m *discordgo.M
 
 				// regex fix any tenor gif links
 				for i, url := range imageUrls {
-					re := regexp.MustCompile(`(^https:\/\/media\.tenor\.com\/.*)(AAAAe\/)(.*)(\.png|\.jpg)`)
-					result := re.ReplaceAllString(url, "$1AAAAC/$3.gif")
+					fmt.Println("url", url)
+					result := tenorRegex.ReplaceAllString(url, "${1}AAAAC/${3}.gif")
 					imageUrls[i] = result
+					fmt.Println("result", result)
 				}
 			}
 
