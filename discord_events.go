@@ -3,34 +3,24 @@ package starboard
 import (
 	"database/sql"
 	"fmt"
-	"time"
+	"regexp"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/intrntsrfr/meido/pkg/mio/discord"
 	"github.com/intrntsrfr/meido/pkg/utils/builders"
-	"go.uber.org/zap"
 )
-
-func isInNsfwChannel(s *discord.Discord, channelID string) bool {
-	channel, err := s.Channel(channelID)
-	if err != nil {
-		return false
-	}
-	return channel.NSFW
-}
 
 func messageDeleteHandler(b *Bot) func(s *discordgo.Session, m *discordgo.MessageDelete) {
 	return func(s *discordgo.Session, m *discordgo.MessageDelete) {
 		star, err := b.db.GetStar(m.ID)
 		if err != nil {
 			if err != sql.ErrNoRows {
-				b.logger.Error("could not get star", zap.Error(err), zap.String("event", "message delete"), zap.Any("message", m))
+				b.logger.Error("could not get star", "error", err, "event", "message delete", "message", m)
 			}
 			return
 		}
 		_ = s.ChannelMessageDelete(star.StarboardChannelID, star.StarboardMsgID)
 		if err = b.db.DeleteStar(m.ID); err != nil {
-			b.logger.Error("could not delete star", zap.Error(err), zap.String("event", "message delete"), zap.Any("message", m))
+			b.logger.Error("could not delete star", "error", err, "event", "message delete", "message", m)
 			return
 		}
 	}
@@ -64,30 +54,81 @@ func messageReactionAddHandler(b *Bot) func(s *discordgo.Session, m *discordgo.M
 			if count < gs.MinStars {
 				return
 			}
-			embed := builders.NewEmbedBuilder().
-				WithAuthor(fmt.Sprintf("%v - ⭐ %v", msg.Author.String(), count), msg.Author.AvatarURL("64")).
-				WithDescription(msg.Content).
-				WithOkColor().
-				WithTimestamp(time.Now().Format(time.RFC3339)).
-				AddField("Author", msg.Author.Mention(), true).
-				AddField("Channel", fmt.Sprintf("<#%v>", r.ChannelID), true)
 
-			if len(msg.Attachments) > 0 {
-				att := msg.Attachments[0]
-				switch att.ContentType {
-				case "image/jpeg", "image/png", "image/gif":
-					embed.WithImageUrl(att.URL)
-				default:
-					embed.Description = fmt.Sprintf("[[%v](%v)]", att.Filename, att.URL)
+			content := msg.Content
+			extraContent := ""
+			extraContent += fmt.Sprintf("\n\n --> [Jump to message](https://discordapp.com/channels/%v/%v/%v)", r.GuildID, r.ChannelID, r.MessageID)
+
+			imageUrls := make([]string, 0)
+			if len(msg.Embeds) > 0 {
+				// fetch embeds with thumbnail or image
+				for _, e := range msg.Embeds {
+					if e.Thumbnail == nil && e.Image == nil {
+						continue
+					}
+					if e.Thumbnail != nil {
+						imageUrls = append(imageUrls, e.Thumbnail.URL)
+						continue
+					}
+					imageUrls = append(imageUrls, e.Image.URL)
+				}
+
+				// regex fix any tenor gif links
+				for i, url := range imageUrls {
+					re := regexp.MustCompile(`(^https:\/\/media\.tenor\.com\/.*)(AAAAe\/)(.*)(\.png|\.jpg)`)
+					result := re.ReplaceAllString(url, "$1AAAAC/$3.gif")
+					imageUrls[i] = result
 				}
 			}
-			embed.Description += fmt.Sprintf("\n\n\n --> [Jump to message](https://discordapp.com/channels/%v/%v/%v)", r.GuildID, r.ChannelID, r.MessageID)
-			starboardMsg, err := s.ChannelMessageSendEmbed(gs.StarboardChannelID, embed.Build())
+
+			for _, att := range msg.Attachments {
+				if att.ContentType == "image/jpeg" || att.ContentType == "image/png" || att.ContentType == "image/gif" {
+					imageUrls = append(imageUrls, att.URL)
+				}
+				extraContent += fmt.Sprintf("\n📎 [%v](%v)", att.Filename, att.URL)
+			}
+
+			content += extraContent
+			if len(content) > 4096 {
+				content = content[:4096]
+			}
+
+			embed := builders.NewEmbedBuilder().
+				WithDescription(content).
+				WithOkColor()
+
+			embed.Author = &discordgo.MessageEmbedAuthor{
+				Name:    fmt.Sprintf("%v - ⭐ %v", msg.Author.String(), count),
+				IconURL: msg.Author.AvatarURL("64"),
+			}
+
+			embeds := []*discordgo.MessageEmbed{embed.Build()}
+
+			// add first image to first embed, rest to new embeds.
+			// they get combined into one embed
+			doneFirst := false
+			for _, url := range imageUrls {
+				if !doneFirst {
+					doneFirst = true
+					embed.WithImageUrl(url)
+					embed.WithUrl(url)
+					continue
+				}
+
+				embed := builders.NewEmbedBuilder().
+					WithImageUrl(url).
+					WithUrl(url).
+					Build()
+				embeds = append(embeds, embed)
+			}
+
+			sentMsg, err := s.ChannelMessageSendComplex(gs.StarboardChannelID, &discordgo.MessageSend{Embeds: embeds})
 			if err != nil {
 				return
 			}
-			if err := b.db.CreateStar(r.MessageID, r.ChannelID, starboardMsg.ID, gs.StarboardChannelID); err != nil {
-				b.logger.Error("could not create star", zap.Error(err))
+
+			if err := b.db.CreateStar(r.MessageID, r.ChannelID, sentMsg.ID, gs.StarboardChannelID); err != nil {
+				b.logger.Error("could not create star", "error", err)
 				return
 			}
 		case nil:
@@ -100,7 +141,7 @@ func messageReactionAddHandler(b *Bot) func(s *discordgo.Session, m *discordgo.M
 			embed.Author.Name = fmt.Sprintf("%v - ⭐ %v", msg.Author.String(), count)
 			_, _ = s.ChannelMessageEditEmbed(star.StarboardChannelID, star.StarboardMsgID, embed)
 		default:
-			b.logger.Error("error", zap.Error(err))
+			b.logger.Error("error", "error", err)
 		}
 	}
 }
@@ -135,7 +176,7 @@ func messageReactionRemoveHandler(b *Bot) func(s *discordgo.Session, m *discordg
 			if count < gs.MinStars {
 				_ = s.ChannelMessageDelete(star.StarboardChannelID, star.StarboardMsgID)
 				if err = b.db.DeleteStar(r.MessageID); err != nil {
-					b.logger.Error("could not deleted", zap.Error(err))
+					b.logger.Error("could not delete starboard message", "error", err)
 				}
 				return
 			}
@@ -147,7 +188,7 @@ func messageReactionRemoveHandler(b *Bot) func(s *discordgo.Session, m *discordg
 			embed.Author.Name = msg.Author.String() + fmt.Sprintf(" - ⭐ %v", count)
 			_, _ = s.ChannelMessageEditEmbed(star.StarboardChannelID, star.StarboardMsgID, embed)
 		default:
-			b.logger.Error("error", zap.Error(err))
+			b.logger.Error("error", "error", err)
 		}
 	}
 }
@@ -157,13 +198,13 @@ func messageReactionRemoveAllHandler(b *Bot) func(s *discordgo.Session, r *disco
 		star, err := b.db.GetStar(r.MessageID)
 		if err != nil {
 			if err != sql.ErrNoRows {
-				b.logger.Error("could not get star", zap.Error(err), zap.Any("react remove all", r))
+				b.logger.Error("could not get star", "error", err, "react remove all", r)
 			}
 			return
 		}
 		_ = s.ChannelMessageDelete(star.StarboardChannelID, star.StarboardMsgID)
 		if err = b.db.DeleteStar(r.MessageID); err != nil {
-			b.logger.Error("could not delete star", zap.Error(err), zap.Any("react remove all", r))
+			b.logger.Error("could not delete star", "error", err, "react remove all", r)
 		}
 	}
 }
@@ -176,7 +217,7 @@ func messageUpdateHandler(b *Bot) func(s *discordgo.Session, m *discordgo.Messag
 		star, err := b.db.GetStar(m.ID)
 		if err != nil {
 			if err != sql.ErrNoRows {
-				b.logger.Error("could not get star", zap.Error(err), zap.Any("message", m))
+				b.logger.Error("could not get star", "error", err, "message", m)
 			}
 			return
 		}
@@ -195,16 +236,16 @@ func messageUpdateHandler(b *Bot) func(s *discordgo.Session, m *discordgo.Messag
 func guildCreateHandler(b *Bot) func(s *discordgo.Session, g *discordgo.GuildCreate) {
 	return func(s *discordgo.Session, g *discordgo.GuildCreate) {
 		if _, err := b.db.GetGuild(g.ID); err != nil {
-			b.logger.Debug("get guild", zap.Error(err))
+			b.logger.Debug("get guild", "error", err)
 			if err != sql.ErrNoRows {
-				b.logger.Error("could not get guild", zap.Error(err), zap.Any("guild", g))
+				b.logger.Error("could not get guild", "error", err, "guild", g)
 				return
 			}
 			if err = b.db.CreateGuild(g.ID); err != nil {
-				b.logger.Error("could not create guild", zap.Error(err), zap.Any("guild", g))
+				b.logger.Error("could not create guild", "error", err, "guild", g)
 				return
 			}
 		}
-		b.logger.Info("guild create", zap.String("id", g.ID))
+		b.logger.Info("guild create", "id", g.ID)
 	}
 }
