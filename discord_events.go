@@ -54,7 +54,7 @@ func extractImageURLsAndInfo(msg *discordgo.Message) ([]string, string) {
 
 func buildStarboardEmbeds(msg *discordgo.Message, count int, guildID, channelID string) []*discordgo.MessageEmbed {
 	content := msg.Content
-	jumpLink := fmt.Sprintf("\n\n --> [Jump to message](https://discord.com/channels/%v/%v/%v)", guildID, channelID, msg.ID)
+	jumpLink := fmt.Sprintf("\n\n --> [Jump to message](https://discord.com/channels/%v/%v/%v)\n", guildID, channelID, msg.ID)
 	content += jumpLink
 
 	imageUrls, extraContent := extractImageURLsAndInfo(msg)
@@ -80,7 +80,7 @@ func buildStarboardEmbeds(msg *discordgo.Message, count int, guildID, channelID 
 		for _, url := range imageUrls[1:] {
 			additionalEmbed := builders.NewEmbedBuilder().
 				WithImageUrl(url).
-				WithUrl(url).
+				WithUrl(imageUrls[0]).
 				Build()
 			embeds = append(embeds, additionalEmbed)
 		}
