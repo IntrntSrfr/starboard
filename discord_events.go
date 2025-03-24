@@ -6,9 +6,18 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/intrntsrfr/meido/pkg/mio/discord"
 	"github.com/intrntsrfr/meido/pkg/utils/builders"
 	"go.uber.org/zap"
 )
+
+func isInNsfwChannel(s *discord.Discord, channelID string) bool {
+	channel, err := s.Channel(channelID)
+	if err != nil {
+		return false
+	}
+	return channel.NSFW
+}
 
 func messageDeleteHandler(b *Bot) func(s *discordgo.Session, m *discordgo.MessageDelete) {
 	return func(s *discordgo.Session, m *discordgo.MessageDelete) {
@@ -29,7 +38,7 @@ func messageDeleteHandler(b *Bot) func(s *discordgo.Session, m *discordgo.Messag
 
 func messageReactionAddHandler(b *Bot) func(s *discordgo.Session, m *discordgo.MessageReactionAdd) {
 	return func(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
-		if u, err := s.State.Member(r.GuildID, r.UserID); err != nil || u.User.Bot {
+		if u, err := b.Bot.Discord.Member(r.GuildID, r.UserID); err != nil || u.User.Bot {
 			return
 		}
 		if r.Emoji.Name != "⭐" {
@@ -98,7 +107,7 @@ func messageReactionAddHandler(b *Bot) func(s *discordgo.Session, m *discordgo.M
 
 func messageReactionRemoveHandler(b *Bot) func(s *discordgo.Session, m *discordgo.MessageReactionRemove) {
 	return func(s *discordgo.Session, r *discordgo.MessageReactionRemove) {
-		if u, err := s.State.Member(r.GuildID, r.UserID); err != nil || u.User.Bot {
+		if u, err := b.Bot.Discord.Member(r.GuildID, r.UserID); err != nil || u.User.Bot {
 			return
 		}
 		if r.Emoji.Name != "⭐" {
