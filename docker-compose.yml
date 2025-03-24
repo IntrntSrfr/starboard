@@ -1,0 +1,22 @@
+services:
+  starboard:
+    build: .
+    depends_on:
+      - db
+    volumes:
+      - ./cmd/starboard/config.json:/app/config.json
+
+  db:
+    image: postgres:17
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=starboard
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

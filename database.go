@@ -1,10 +1,31 @@
-package database
+package starboard
 
 import (
 	"fmt"
-	"github.com/intrntsrfr/starboard/internal/structs"
+
 	"github.com/jmoiron/sqlx"
 )
+
+type DB interface {
+	Init() error
+	Close() error
+
+	GuildDB
+	StarDB
+}
+
+type GuildDB interface {
+	CreateGuild(guildID string) error
+	GetGuild(guildID string) (*GuildSettings, error)
+	UpdateGuild(g *GuildSettings) error
+}
+
+type StarDB interface {
+	CreateStar(messageID, channelID, botMessageID, starboardChannelID string) error
+	GetStar(messageID string) (*Star, error)
+	UpdateStar(star *Star) error
+	DeleteStar(messageID string) error
+}
 
 type PsqlDB struct {
 	pool *sqlx.DB
@@ -23,8 +44,8 @@ func NewPSQLDatabase(connStr string) (*PsqlDB, error) {
 
 func (db *PsqlDB) Init() error {
 	schemas := map[string]string{
-		"guild": structs.SchemaGuildSettings,
-		"stars": structs.SchemaStars,
+		"guild": SchemaGuildSettings,
+		"stars": SchemaStars,
 	}
 
 	for k, v := range schemas {
@@ -46,13 +67,13 @@ func (db *PsqlDB) CreateStar(messageID, channelID, botMessageID, starboardChanne
 	return err
 }
 
-func (db *PsqlDB) GetStar(messageID string) (*structs.Star, error) {
-	var star structs.Star
+func (db *PsqlDB) GetStar(messageID string) (*Star, error) {
+	var star Star
 	err := db.pool.Get(&star, "SELECT * FROM stars WHERE id = $1;", messageID)
 	return &star, err
 }
 
-func (db *PsqlDB) UpdateStar(star *structs.Star) error {
+func (db *PsqlDB) UpdateStar(star *Star) error {
 	_, err := db.pool.Exec("UPDATE stars SET origin_channel_id=$1, starboard_msg_id=$2, starboard_channel_id=$3 WHERE id=$4",
 		star.OriginChannelID, star.StarboardMsgID, star.StarboardChannelID, star.ID)
 	return err
@@ -68,14 +89,24 @@ func (db *PsqlDB) CreateGuild(guildID string) error {
 	return err
 }
 
-func (db *PsqlDB) GetGuild(guildID string) (*structs.GuildSettings, error) {
-	var guild structs.GuildSettings
-	err := db.pool.Get(&guild, "SELECT * FROM guildsettings WHERE id = $1;", guildID)
+func (db *PsqlDB) UpsertGuild(guild *GuildSettings) error {
+	query := `
+	INSERT INTO guildsettings (id, starboard_channel_id, min_stars) VALUES ($1, $2, $3)
+	ON CONFLICT (id) DO UPDATE SET starboard_channel_id = EXCLUDED.starboard_channel_id, min_stars = EXCLUDED.min_stars;
+	`
+	_, err := db.pool.Exec(query, guild.ID, guild.MinStars, guild.StarboardChannelID)
+	return err
+}
+
+func (db *PsqlDB) GetGuild(guildID string) (*GuildSettings, error) {
+	var guild GuildSettings
+	query := `SELECT * FROM guildsettings WHERE id = $1;`
+	err := db.pool.Get(&guild, query, guildID)
 	return &guild, err
 }
 
-func (db *PsqlDB) UpdateGuild(g *structs.GuildSettings) error {
-	_, err := db.pool.Exec("UPDATE guildsettings SET min_stars=$1, starboard_channel_id=$2 WHERE id=$3",
-		g.MinStars, g.StarboardChannelID, g.ID)
+func (db *PsqlDB) UpdateGuild(g *GuildSettings) error {
+	query := `UPDATE guildsettings SET min_stars=$1, starboard_channel_id=$2 WHERE id=$3;`
+	_, err := db.pool.Exec(query, g.MinStars, g.StarboardChannelID, g.ID)
 	return err
 }

@@ -1,4 +1,4 @@
-package structs
+package starboard
 
 type Config struct {
 	Token            string `json:"token"`
