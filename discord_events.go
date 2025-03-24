@@ -9,9 +9,85 @@ import (
 	"github.com/intrntsrfr/meido/pkg/utils/builders"
 )
 
+const (
+	starEmoji = "⭐"
+)
+
 var (
 	tenorRegex = regexp.MustCompile(`(^https:\/\/media\.tenor\.com\/.*)(AAAAe\/)(.*)(\.png|\.jpg)`)
 )
+
+func fixTenorURL(url string) string {
+	return tenorRegex.ReplaceAllString(url, "${1}AAAAC/${3}.gif")
+}
+
+func getReactionCount(msg *discordgo.Message, emoji string) int {
+	for _, r := range msg.Reactions {
+		if r.Emoji.Name == emoji {
+			return r.Count
+		}
+	}
+	return 0
+}
+
+func extractImageURLsAndInfo(msg *discordgo.Message) ([]string, string) {
+	imageUrls := make([]string, 0)
+	extraContent := ""
+
+	for _, embed := range msg.Embeds {
+		if embed.Thumbnail != nil {
+			imageUrls = append(imageUrls, fixTenorURL(embed.Thumbnail.URL))
+		} else if embed.Image != nil {
+			imageUrls = append(imageUrls, fixTenorURL(embed.Image.URL))
+		}
+	}
+
+	for _, att := range msg.Attachments {
+		if att.ContentType == "image/jpeg" || att.ContentType == "image/png" || att.ContentType == "image/gif" {
+			imageUrls = append(imageUrls, att.URL)
+		}
+		extraContent += fmt.Sprintf("\n📎 [%v](%v)", att.Filename, att.URL)
+	}
+
+	return imageUrls, extraContent
+}
+
+func buildStarboardEmbeds(msg *discordgo.Message, count int, guildID, channelID string) []*discordgo.MessageEmbed {
+	content := msg.Content
+	jumpLink := fmt.Sprintf("\n\n --> [Jump to message](https://discord.com/channels/%v/%v/%v)", guildID, channelID, msg.ID)
+	content += jumpLink
+
+	imageUrls, extraContent := extractImageURLsAndInfo(msg)
+	content += extraContent
+
+	if len(content) > 4096 {
+		content = content[:4096]
+	}
+
+	embedBuilder := builders.NewEmbedBuilder().
+		WithDescription(content).
+		WithOkColor()
+	embedBuilder.Author = &discordgo.MessageEmbedAuthor{
+		Name:    fmt.Sprintf("%v - ⭐ %v", msg.Author.String(), count),
+		IconURL: msg.Author.AvatarURL("64"),
+	}
+	embeds := []*discordgo.MessageEmbed{embedBuilder.Build()}
+
+	if len(imageUrls) > 0 {
+		embedBuilder.WithImageUrl(imageUrls[0])
+		embedBuilder.WithUrl(imageUrls[0])
+
+		for _, url := range imageUrls[1:] {
+			additionalEmbed := builders.NewEmbedBuilder().
+				WithImageUrl(url).
+				WithUrl(url).
+				Build()
+			embeds = append(embeds, additionalEmbed)
+		}
+	}
+
+	return embeds
+}
 
 func messageDeleteHandler(b *Bot) func(s *discordgo.Session, m *discordgo.MessageDelete) {
 	return func(s *discordgo.Session, m *discordgo.MessageDelete) {
@@ -35,7 +111,7 @@ func messageReactionAddHandler(b *Bot) func(s *discordgo.Session, m *discordgo.M
 		if u, err := b.Bot.Discord.Member(r.GuildID, r.UserID); err != nil || u.User.Bot {
 			return
 		}
-		if r.Emoji.Name != "⭐" {
+		if r.Emoji.Name != starEmoji {
 			return
 		}
 		gs, err := b.db.GetGuild(r.GuildID)
@@ -46,12 +122,7 @@ func messageReactionAddHandler(b *Bot) func(s *discordgo.Session, m *discordgo.M
 		if err != nil {
 			return
 		}
-		count := 0
-		for _, mr := range msg.Reactions {
-			if mr.Emoji.Name == "⭐" {
-				count = mr.Count
-			}
-		}
+		count := getReactionCount(msg, starEmoji)
 		star, err := b.db.GetStar(r.MessageID)
 		switch err {
 		case sql.ErrNoRows:
@@ -59,74 +130,7 @@ func messageReactionAddHandler(b *Bot) func(s *discordgo.Session, m *discordgo.M
 				return
 			}
 
-			content := msg.Content
-			extraContent := ""
-			extraContent += fmt.Sprintf("\n\n --> [Jump to message](https://discordapp.com/channels/%v/%v/%v)", r.GuildID, r.ChannelID, r.MessageID)
-
-			imageUrls := make([]string, 0)
-			if len(msg.Embeds) > 0 {
-				// fetch embeds with thumbnail or image
-				for _, e := range msg.Embeds {
-					if e.Thumbnail == nil && e.Image == nil {
-						continue
-					}
-					if e.Thumbnail != nil {
-						imageUrls = append(imageUrls, e.Thumbnail.URL)
-						continue
-					}
-					imageUrls = append(imageUrls, e.Image.URL)
-				}
-
-				// regex fix any tenor gif links
-				for i, url := range imageUrls {
-					fmt.Println("url", url)
-					result := tenorRegex.ReplaceAllString(url, "${1}AAAAC/${3}.gif")
-					imageUrls[i] = result
-					fmt.Println("result", result)
-				}
-			}
-
-			for _, att := range msg.Attachments {
-				if att.ContentType == "image/jpeg" || att.ContentType == "image/png" || att.ContentType == "image/gif" {
-					imageUrls = append(imageUrls, att.URL)
-				}
-				extraContent += fmt.Sprintf("\n📎 [%v](%v)", att.Filename, att.URL)
-			}
-
-			content += extraContent
-			if len(content) > 4096 {
-				content = content[:4096]
-			}
-
-			embed := builders.NewEmbedBuilder().
-				WithDescription(content).
-				WithOkColor()
-
-			embed.Author = &discordgo.MessageEmbedAuthor{
-				Name:    fmt.Sprintf("%v - ⭐ %v", msg.Author.String(), count),
-				IconURL: msg.Author.AvatarURL("64"),
-			}
-
-			embeds := []*discordgo.MessageEmbed{embed.Build()}
-
-			// add first image to first embed, rest to new embeds.
-			// they get combined into one embed
-			doneFirst := false
-			for _, url := range imageUrls {
-				if !doneFirst {
-					doneFirst = true
-					embed.WithImageUrl(url)
-					embed.WithUrl(url)
-					continue
-				}
-
-				embed := builders.NewEmbedBuilder().
-					WithImageUrl(url).
-					WithUrl(url).
-					Build()
-				embeds = append(embeds, embed)
-			}
-
+			embeds := buildStarboardEmbeds(msg, count, r.GuildID, r.ChannelID)
 			sentMsg, err := s.ChannelMessageSendComplex(gs.StarboardChannelID, &discordgo.MessageSend{Embeds: embeds})
 			if err != nil {
 				return
@@ -156,7 +160,7 @@ func messageReactionRemoveHandler(b *Bot) func(s *discordgo.Session, m *discordg
 		if u, err := b.Bot.Discord.Member(r.GuildID, r.UserID); err != nil || u.User.Bot {
 			return
 		}
-		if r.Emoji.Name != "⭐" {
+		if r.Emoji.Name != starEmoji {
 			return
 		}
 		gs, err := b.db.GetGuild(r.GuildID)
@@ -167,12 +171,7 @@ func messageReactionRemoveHandler(b *Bot) func(s *discordgo.Session, m *discordg
 		if err != nil {
 			return
 		}
-		count := 0
-		for _, mr := range msg.Reactions {
-			if mr.Emoji.Name == "⭐" {
-				count = mr.Count
-			}
-		}
+		count := getReactionCount(msg, starEmoji)
 		star, err := b.db.GetStar(r.MessageID)
 		switch err {
 		case sql.ErrNoRows:
