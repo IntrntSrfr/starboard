@@ -89,7 +89,7 @@ func buildStarboardEmbeds(msg *discordgo.Message, count int, guildID, channelID 
 	return embeds
 }
 
-func messageDeleteHandler(b *Bot) func(s *discordgo.Session, m *discordgo.MessageDelete) {
+func messageDeleteHandler(b *Bot) func(*discordgo.Session, *discordgo.MessageDelete) {
 	return func(s *discordgo.Session, m *discordgo.MessageDelete) {
 		star, err := b.db.GetStar(m.ID)
 		if err != nil {
@@ -106,16 +106,19 @@ func messageDeleteHandler(b *Bot) func(s *discordgo.Session, m *discordgo.Messag
 	}
 }
 
-func messageReactionAddHandler(b *Bot) func(s *discordgo.Session, m *discordgo.MessageReactionAdd) {
+func messageReactionAddHandler(b *Bot) func(*discordgo.Session, *discordgo.MessageReactionAdd) {
 	return func(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
-		if u, err := b.Bot.Discord.Member(r.GuildID, r.UserID); err != nil || u.User.Bot {
-			return
-		}
 		if r.Emoji.Name != starEmoji {
 			return
 		}
 		gs, err := b.db.GetGuild(r.GuildID)
 		if err != nil {
+			return
+		}
+		if r.ChannelID == gs.StarboardChannelID {
+			return
+		}
+		if u, err := b.Bot.Discord.Member(r.GuildID, r.UserID); err != nil || u.User.Bot {
 			return
 		}
 		msg, err := s.ChannelMessage(r.ChannelID, r.MessageID)
@@ -155,16 +158,19 @@ func messageReactionAddHandler(b *Bot) func(s *discordgo.Session, m *discordgo.M
 	}
 }
 
-func messageReactionRemoveHandler(b *Bot) func(s *discordgo.Session, m *discordgo.MessageReactionRemove) {
+func messageReactionRemoveHandler(b *Bot) func(*discordgo.Session, *discordgo.MessageReactionRemove) {
 	return func(s *discordgo.Session, r *discordgo.MessageReactionRemove) {
-		if u, err := b.Bot.Discord.Member(r.GuildID, r.UserID); err != nil || u.User.Bot {
-			return
-		}
 		if r.Emoji.Name != starEmoji {
 			return
 		}
 		gs, err := b.db.GetGuild(r.GuildID)
 		if err != nil {
+			return
+		}
+		if r.ChannelID == gs.StarboardChannelID {
+			return
+		}
+		if u, err := b.Bot.Discord.Member(r.GuildID, r.UserID); err != nil || u.User.Bot {
 			return
 		}
 		msg, err := s.ChannelMessage(r.ChannelID, r.MessageID)
@@ -197,7 +203,7 @@ func messageReactionRemoveHandler(b *Bot) func(s *discordgo.Session, m *discordg
 	}
 }
 
-func messageReactionRemoveAllHandler(b *Bot) func(s *discordgo.Session, r *discordgo.MessageReactionRemoveAll) {
+func messageReactionRemoveAllHandler(b *Bot) func(*discordgo.Session, *discordgo.MessageReactionRemoveAll) {
 	return func(s *discordgo.Session, r *discordgo.MessageReactionRemoveAll) {
 		star, err := b.db.GetStar(r.MessageID)
 		if err != nil {
@@ -213,7 +219,7 @@ func messageReactionRemoveAllHandler(b *Bot) func(s *discordgo.Session, r *disco
 	}
 }
 
-func messageUpdateHandler(b *Bot) func(s *discordgo.Session, m *discordgo.MessageUpdate) {
+func messageUpdateHandler(b *Bot) func(*discordgo.Session, *discordgo.MessageUpdate) {
 	return func(s *discordgo.Session, m *discordgo.MessageUpdate) {
 		if m.Author == nil || m.Author.Bot || m.GuildID == "" {
 			return
@@ -237,7 +243,7 @@ func messageUpdateHandler(b *Bot) func(s *discordgo.Session, m *discordgo.Messag
 
 }
 
-func guildCreateHandler(b *Bot) func(s *discordgo.Session, g *discordgo.GuildCreate) {
+func guildCreateHandler(b *Bot) func(*discordgo.Session, *discordgo.GuildCreate) {
 	return func(s *discordgo.Session, g *discordgo.GuildCreate) {
 		if _, err := b.db.GetGuild(g.ID); err != nil {
 			b.logger.Debug("get guild", "error", err)
