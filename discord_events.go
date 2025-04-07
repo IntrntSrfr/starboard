@@ -34,11 +34,18 @@ func extractImageURLsAndInfo(msg *discordgo.Message) ([]string, string) {
 	imageUrls := make([]string, 0)
 	extraContent := ""
 
-	for _, embed := range msg.Embeds {
-		if embed.Thumbnail != nil {
-			imageUrls = append(imageUrls, fixTenorURL(embed.Thumbnail.URL))
-		} else if embed.Image != nil {
-			imageUrls = append(imageUrls, fixTenorURL(embed.Image.URL))
+	if len(msg.Embeds) > 0 {
+		for _, embed := range msg.Embeds {
+			if embed.Thumbnail != nil {
+				imageUrls = append(imageUrls, fixTenorURL(embed.Thumbnail.URL))
+			} else if embed.Image != nil {
+				imageUrls = append(imageUrls, fixTenorURL(embed.Image.URL))
+			}
+		}
+
+		// if its a bot message
+		if msg.Content == "" {
+			msg.Content = msg.Embeds[0].Description
 		}
 	}
 
