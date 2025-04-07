@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/intrntsrfr/meido/pkg/utils/builders"
@@ -73,7 +74,8 @@ func buildStarboardEmbeds(msg *discordgo.Message, count int, guildID, channelID 
 
 	embedBuilder := builders.NewEmbedBuilder().
 		WithDescription(content).
-		WithOkColor()
+		WithOkColor().
+		AddField("Channel", fmt.Sprintf("<#%v>", channelID), true)
 	embedBuilder.Author = &discordgo.MessageEmbedAuthor{
 		Name:    fmt.Sprintf("%v - ⭐ %v", msg.Author.String(), count),
 		IconURL: msg.Author.AvatarURL("64"),
@@ -132,6 +134,26 @@ func messageReactionAddHandler(b *Bot) func(*discordgo.Session, *discordgo.Messa
 		if err != nil {
 			return
 		}
+
+		if msg.MessageReference != nil {
+			if msg.MessageReference.Type == discordgo.MessageReferenceTypeForward && len(msg.MessageSnapshots) > 0 {
+				snapshot := msg.MessageSnapshots[0]
+				msg.Content = snapshot.Message.Content
+				msg.Embeds = snapshot.Message.Embeds
+				msg.Attachments = snapshot.Message.Attachments
+			} else if msg.Type == discordgo.MessageTypeReply {
+				refMsg, err := s.ChannelMessage(msg.MessageReference.ChannelID, msg.MessageReference.MessageID)
+				if err == nil {
+					if len(refMsg.Content) > 256 {
+						refMsg.Content = refMsg.Content[:256]
+					}
+
+					replyText := fmt.Sprintf("%v\n\n> **Replied to %s**\n> \n> %s", msg.Content, refMsg.Author.Username, strings.ReplaceAll(refMsg.Content, "\n", "\n> "))
+					msg.Content = replyText
+				}
+			}
+		}
+
 		count := getReactionCount(msg, starEmoji)
 		star, err := b.db.GetStar(r.MessageID)
 		switch err {
@@ -247,7 +269,6 @@ func messageUpdateHandler(b *Bot) func(*discordgo.Session, *discordgo.MessageUpd
 			_, _ = s.ChannelMessageEditEmbed(star.StarboardChannelID, star.StarboardMsgID, embed)
 		}
 	}
-
 }
 
 func guildCreateHandler(b *Bot) func(*discordgo.Session, *discordgo.GuildCreate) {
