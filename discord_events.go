@@ -52,9 +52,9 @@ func extractImageURLsAndInfo(msg *discordgo.Message) ([]string, string) {
 	return imageUrls, extraContent
 }
 
-func buildStarboardEmbeds(msg *discordgo.Message, count int, guildID, channelID string) []*discordgo.MessageEmbed {
+func buildStarboardEmbeds(msg *discordgo.Message, count int, guild *discordgo.Guild, channel *discordgo.Channel) []*discordgo.MessageEmbed {
 	content := msg.Content
-	jumpLink := fmt.Sprintf("\n\n --> [Jump to message](https://discord.com/channels/%v/%v/%v)\n", guildID, channelID, msg.ID)
+	jumpLink := fmt.Sprintf("\n\n --> [Jump to message](https://discord.com/channels/%v/%v/%v)\n", guild.ID, channel.ID, msg.ID)
 	content += jumpLink
 
 	imageUrls, extraContent := extractImageURLsAndInfo(msg)
@@ -66,7 +66,9 @@ func buildStarboardEmbeds(msg *discordgo.Message, count int, guildID, channelID 
 
 	embedBuilder := builders.NewEmbedBuilder().
 		WithDescription(content).
-		WithOkColor()
+		WithOkColor().
+		WithFooter(fmt.Sprintf("#%v", channel.Name), "")
+
 	embedBuilder.Author = &discordgo.MessageEmbedAuthor{
 		Name:    fmt.Sprintf("%v - ⭐ %v", msg.Author.String(), count),
 		IconURL: msg.Author.AvatarURL("64"),
@@ -108,6 +110,16 @@ func messageDeleteHandler(b *Bot) func(*discordgo.Session, *discordgo.MessageDel
 
 func messageReactionAddHandler(b *Bot) func(*discordgo.Session, *discordgo.MessageReactionAdd) {
 	return func(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
+		guild, err := b.Bot.Discord.Guild(r.GuildID)
+		if err != nil {
+			return
+		}
+
+		channel, err := b.Bot.Discord.Channel(r.ChannelID)
+		if err != nil {
+			return
+		}
+
 		if r.Emoji.Name != starEmoji {
 			return
 		}
@@ -118,13 +130,16 @@ func messageReactionAddHandler(b *Bot) func(*discordgo.Session, *discordgo.Messa
 		if r.ChannelID == gs.StarboardChannelID {
 			return
 		}
+
 		if u, err := b.Bot.Discord.Member(r.GuildID, r.UserID); err != nil || u.User.Bot {
 			return
 		}
+
 		msg, err := s.ChannelMessage(r.ChannelID, r.MessageID)
 		if err != nil {
 			return
 		}
+
 		count := getReactionCount(msg, starEmoji)
 		star, err := b.db.GetStar(r.MessageID)
 		switch err {
@@ -133,7 +148,7 @@ func messageReactionAddHandler(b *Bot) func(*discordgo.Session, *discordgo.Messa
 				return
 			}
 
-			embeds := buildStarboardEmbeds(msg, count, r.GuildID, r.ChannelID)
+			embeds := buildStarboardEmbeds(msg, count, guild, channel)
 			sentMsg, err := s.ChannelMessageSendComplex(gs.StarboardChannelID, &discordgo.MessageSend{Embeds: embeds})
 			if err != nil {
 				return
