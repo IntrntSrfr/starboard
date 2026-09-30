@@ -94,7 +94,7 @@ func (db *PsqlDB) UpsertGuild(guild *GuildSettings) error {
 	INSERT INTO guildsettings (id, starboard_channel_id, min_stars) VALUES ($1, $2, $3)
 	ON CONFLICT (id) DO UPDATE SET starboard_channel_id = EXCLUDED.starboard_channel_id, min_stars = EXCLUDED.min_stars;
 	`
-	_, err := db.pool.Exec(query, guild.ID, guild.MinStars, guild.StarboardChannelID)
+	_, err := db.pool.Exec(query, guild.ID, guild.StarboardChannelID, guild.MinStars)
 	return err
 }
 
