@@ -8,7 +8,11 @@ import (
 	"github.com/intrntsrfr/meido/pkg/utils/builders"
 )
 
-const helpDescription = "There are two settings you can change\n - Starboard channel\n - Minimum required stars for a post to be posted to starboard\n\t - The minimum amount you can set is 1\nTwo examples: \n`/settings edit channel` - Edit the Starboard channel\n`/settings edit minstars 3` - Edit the minimum amount of reactions to appear on Starboard"
+const helpDescription = "React to a message with ⭐ to help it reach the starboard.\n\n" +
+	"Administrators can configure the starboard channel and required stars (minimum 1):\n" +
+	"`/settings view` — View the current settings.\n" +
+	"`/settings set stars:3 channel:#starboard` — Set the required stars and destination channel. Both options are required.\n\n" +
+	"[Privacy policy](https://github.com/IntrntSrfr/starboard/blob/master/PRIVACY.md)"
 
 type module struct {
 	*bot.ModuleBase
