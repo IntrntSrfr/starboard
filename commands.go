@@ -1,15 +1,14 @@
 package starboard
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/bwmarrin/discordgo"
 	"github.com/intrntsrfr/meido/pkg/mio"
 	"github.com/intrntsrfr/meido/pkg/mio/bot"
 	"github.com/intrntsrfr/meido/pkg/mio/discord"
 	"github.com/intrntsrfr/meido/pkg/utils/builders"
 )
+
+const helpDescription = "There are two settings you can change\n - Starboard channel\n - Minimum required stars for a post to be posted to starboard\n\t - The minimum amount you can set is 1\nTwo examples: \n`/settings edit channel` - Edit the Starboard channel\n`/settings edit minstars 3` - Edit the minimum amount of reactions to appear on Starboard"
 
 type module struct {
 	*bot.ModuleBase
@@ -42,20 +41,10 @@ func newHelpSlash(m *module) *bot.ModuleApplicationCommand {
 		Description("Get help on how to use the bot")
 
 	run := func(d *discord.DiscordApplicationCommand) {
-
-		text := strings.Builder{}
-		text.WriteString("There are two settings you can change")
-		text.WriteString("\n - Starboard channel")
-		text.WriteString("\n - Minimum required stars for a post to be posted to starboard")
-		text.WriteString("\n\t - The minimum amount you can set is 1")
-		text.WriteString("\nTwo examples: ")
-		text.WriteString("\n`/settings edit channel` - Edit the Starboard channel")
-		text.WriteString("\n`/settings edit minstars 3` - Edit the minimum amount of reactions to appear on Starboard")
-
 		embed := builders.NewEmbedBuilder().
 			WithTitle("Help").
 			WithOkColor().
-			WithDescription(text.String())
+			WithDescription(helpDescription)
 		d.RespondEmbed(embed.Build())
 	}
 
@@ -63,7 +52,8 @@ func newHelpSlash(m *module) *bot.ModuleApplicationCommand {
 }
 
 func newSettingsSlash(m *module) *bot.ModuleApplicationCommand {
-	minStars := 1.0
+	minStars := minStarsFloor
+	handler := NewSettingsCommand(m.db, m.Logger.Named("settings_command"))
 
 	cmd := bot.NewModuleApplicationCommandBuilder(m, "settings").
 		Type(discordgo.ChatApplicationCommand).
@@ -97,66 +87,8 @@ func newSettingsSlash(m *module) *bot.ModuleApplicationCommand {
 		})
 
 	run := func(d *discord.DiscordApplicationCommand) {
-		gc, err := m.db.GetGuild(d.GuildID())
-		if err != nil {
-			d.Respond("Couldn't get server config")
-			m.Logger.Error("Couldn't get server config", "error", err)
-			return
-		}
-
-		if _, ok := d.Options("view"); ok {
-			d.RespondEmbed(generateSettingsEmbed(gc))
-			return
-		} else if _, ok := d.Options("set"); ok {
-			// required setting, dont bother checking if it exists
-			starsOpt, _ := d.Options("set:stars")
-			stars := starsOpt.IntValue()
-
-			// required setting, dont bother checking if it exists
-			chOpt, _ := d.Options("set:channel")
-			ch := chOpt.ChannelValue(d.Sess.Real())
-
-			if ch == nil {
-				d.Respond("Couldn't find that channel")
-				return
-			}
-
-			gc.MinStars = int(stars)
-			gc.StarboardChannelID = ch.ID
-
-			if err := m.db.UpdateGuild(gc); err != nil {
-				d.Respond("Couldn't update server config")
-				m.Logger.Error("Couldn't get server config", "error", err)
-				return
-			}
-
-			embed := generateSettingsEmbed(gc)
-			embed.Title = "Updated settings"
-
-			resp := &discordgo.InteractionResponseData{
-				Embeds: []*discordgo.MessageEmbed{embed},
-				Flags:  discordgo.MessageFlagsEphemeral,
-			}
-
-			d.RespondComplex(resp, discordgo.InteractionResponseChannelMessageWithSource)
-			return
-		}
+		handler.Handle(newDiscordSettingsContext(d))
 	}
 
 	return cmd.Execute(run).Build()
-}
-
-func generateSettingsEmbed(gc *GuildSettings) *discordgo.MessageEmbed {
-	channelFieldStr := fmt.Sprintf("<#%v>", gc.StarboardChannelID)
-	if gc.StarboardChannelID == "" {
-		channelFieldStr = "Not set"
-	}
-
-	embed := builders.NewEmbedBuilder().
-		WithTitle("Settings").
-		WithOkColor().
-		AddField("Stars required", fmt.Sprint(gc.MinStars), true).
-		AddField("Starboard channel", channelFieldStr, true)
-
-	return embed.Build()
 }
